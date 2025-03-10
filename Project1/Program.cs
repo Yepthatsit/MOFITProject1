@@ -8,7 +8,7 @@ namespace Project1
         public static async Task Main()
         {
             var ex1 = new Exercise1();
-            await ex1.CalculateSolution();
+            await ex1.CalculateExplicitEulerSolution();
             Console.WriteLine("something");
         }
     }
