@@ -1,10 +1,14 @@
 ﻿// See https://aka.ms/new-console-template for more information
-namespace main
+using Project1.Solutions;
+namespace Project1
 {
     class Program
     {
-        static async Task Main()
+       
+        public static async Task Main()
         {
+            var ex1 = new Exercise1();
+            await ex1.CalculateSolution();
             Console.WriteLine("something");
         }
     }
