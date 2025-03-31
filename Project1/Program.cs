@@ -9,6 +9,8 @@ namespace Project1
         {
             var ex1 = new Exercise1();
             await ex1.CalculateExplicitEulerSolution();
+            await ex1.CalculateVerlet();
+            await ex1.CalculateRK4();
             Console.WriteLine("something");
         }
     }

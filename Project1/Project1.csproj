@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="Plotly.NET" Version="5.1.0" />
+    <PackageReference Include="ScottPlot" Version="5.0.55" />
+    <PackageReference Include="ShellProgressBar" Version="5.2.0" />
   </ItemGroup>
 
 </Project>
