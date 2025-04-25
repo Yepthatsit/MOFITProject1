@@ -199,19 +199,14 @@ namespace Project1.Solutions
                     List<double> DoubledtXkv = new();
                     List<double> DoubledtVkv = new();
 
-                    // 4 steps of RK4 for double time step
+                    // 4 steps of RK4 for double time step -- źle liczy 4 k
                     DoubledtXkv.Add(VelocityValues.LastOrDefault());
                     DoubledtVkv.Add(await CalculateAcceleration(XValues.LastOrDefault(), VelocityValues.LastOrDefault()));
                     for (int i = 1; i < 4; i++)
                     {
-
-                        var xh = XValues.LastOrDefault() +  DeltaTime * DoubledtXkv[i - 1];
-                        var Velocityh = VelocityValues.LastOrDefault() +  DeltaTime * DoubledtVkv[i - 1];
-                        if (i == 3)
-                        {
-                            xh = XValues.LastOrDefault() + 2 * DeltaTime * DoubledtXkv[i - 1];
-                            Velocityh = VelocityValues.LastOrDefault() + 2 * DeltaTime * DoubledtVkv[i - 1];
-                        }
+                        var consant = (i==3) ? 2: 1;
+                        var xh = VelocityValues.LastOrDefault() +  DeltaTime * DoubledtXkv[i - 1]*consant;
+                        var Velocityh = await CalculateAcceleration(XValues.LastOrDefault() + DeltaTime * DoubledtXkv[i - 1]*consant, VelocityValues.LastOrDefault()); 
                         DoubledtXkv.Add(Velocityh);
                         DoubledtVkv.Add(await CalculateAcceleration(xh, Velocityh));
                     }
@@ -226,13 +221,9 @@ namespace Project1.Solutions
                     Vkv.Add(await CalculateAcceleration(XValues.LastOrDefault(), VelocityValues.LastOrDefault()));
                     for (int i = 1; i < 4; i++)
                     {
-                        var xh = XValues.LastOrDefault() + DeltaTime * Xkv[i - 1]/2;
-                        var Velocityh = VelocityValues.LastOrDefault() + DeltaTime * Vkv[i - 1]/2;
-                        if (i == 3)
-                        {
-                            xh = XValues.LastOrDefault() + DeltaTime * Xkv[i - 1];
-                            Velocityh = VelocityValues.LastOrDefault() + DeltaTime * Vkv[i - 1];
-                        }
+                        var consant = (i == 3) ? 1 : 0.5;
+                        var xh = VelocityValues.LastOrDefault() + DeltaTime * Vkv[i - 1] * consant;
+                        var Velocityh = await CalculateAcceleration(XValues.LastOrDefault() + DeltaTime * Xkv[i - 1] * consant, VelocityValues.LastOrDefault());
                         Xkv.Add(Velocityh);
                         Vkv.Add(await CalculateAcceleration(xh, Velocityh));
                     }
@@ -246,15 +237,11 @@ namespace Project1.Solutions
                     Vkv.Add(await CalculateAcceleration(x, Velocity));
                     for (int i = 1; i < 4; i++)
                     {
-                        var xh = x + DeltaTime * Xkv[i - 1] / 2;
-                        var Velocityh = Velocity + DeltaTime * Vkv[i - 1] / 2;
-                        if (i == 3)
-                        {
-                            xh = x + DeltaTime * Xkv[i-1];
-                            Velocityh = Velocity + DeltaTime * Vkv[i - 1];
-                        }
+                        var consant = (i == 3) ? 1 : 0.5;
+                        var xh = Velocity + DeltaTime * Vkv[i - 1] * consant;
+                        var Velocityh = await CalculateAcceleration(x + DeltaTime * Xkv[i - 1] * consant, Velocity);
                         Xkv.Add(Velocityh);
-                        Vkv.Add(await CalculateAcceleration(xh,Velocityh));
+                        Vkv.Add(await CalculateAcceleration(xh, Velocityh));
                     }
                     x = x + DeltaTime * (Xkv[0] + 2 * Xkv[1] + 2 * Xkv[2] + Xkv[3]) / 6;
                     Velocity = Velocity + DeltaTime * (Vkv[0] + 2 * Vkv[1] + 2 * Vkv[2] + Vkv[3]) / 6;
