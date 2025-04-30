@@ -11,11 +11,12 @@ namespace Project1.Solutions
         public List<double> TimePoints { get; set; } = new();
         public List<double> XValues { get; set; } = new() {2.58};
         public List<double> VelocityValues { get; set; } = new() { 0 };
-        public Exercise1()
+        public Exercise1(double DeltaTime = 0.00001)
         {
             try
             {
-                if(!Path.Exists("./Diagrams"))
+                this.DeltaTime = DeltaTime;
+                if (!Path.Exists("./Diagrams"))
                     Directory.CreateDirectory("./Diagrams");
                 var dir = Path.Combine(Directory.GetCurrentDirectory(), "Diagrams");
                 Console.WriteLine($"Plots will be saved in: \n{dir}");
@@ -34,7 +35,7 @@ namespace Project1.Solutions
         {
             return -(await CalculatePotentialValue(x + DeltaXInDerriveative) - await CalculatePotentialValue(x - DeltaXInDerriveative))/(2*DeltaXInDerriveative);
         }
-        public async Task CalculateExplicitEulerSolution()
+        public async Task<Dictionary<string,double>> CalculateExplicitEulerSolution()
         {
             XValues = new() { 2.58 };
             VelocityValues = new() { 0 };
@@ -49,33 +50,54 @@ namespace Project1.Solutions
             var watch = System.Diagnostics.Stopwatch.StartNew();
             for (int i = 1; i< TimePoints.Count(); i++)
             {
-                VelocityValues.Add(VelocityValues[i - 1] + DeltaTime * await CalculateAcceleration(XValues[i - 1]));
+                
                 XValues.Add(XValues[i - 1] + DeltaTime * VelocityValues[i-1]);
+                VelocityValues.Add(VelocityValues[i - 1] + DeltaTime * await CalculateAcceleration(XValues[i - 1]));
                 progress.Tick();
             }
             progress.Dispose();
             Console.WriteLine($"Calculation completed in {watch.ElapsedMilliseconds} ms");
-             watch.Restart();
+            watch.Restart();
             Console.WriteLine("Creating plots please wait...");
             ScottPlot.Plot plot = new();
-            plot.XLabel("Time (s)");
-            plot.YLabel("Value");
+            plot.XLabel("Czas (s)");
+            plot.YLabel("Wartość");
             var scatter1 = plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), XValues.Where((v, ind) => ind % 10 == 0).ToList());
-            scatter1.LegendText = "X";
+            scatter1.LegendText = "X [m]";
             var scatter2 = plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
-            scatter2.LegendText = "V";
-            plot.SaveJpeg("Diagrams/explicit_euler.jpg", 500,500);
+            scatter2.LegendText = "V [m/s]";
+            plot.SaveJpeg("Diagrams/explicit_euler.jpg", 500, 500);
             plot = new();
-            plot.Add.ScatterLine(XValues.Where((v,ind) => ind %10 ==0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
-            plot.XLabel("X");
-            plot.YLabel("V");
+            plot.Add.ScatterLine(XValues.Where((v, ind) => ind % 10 == 0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("X [m]");
+            plot.YLabel("V [m/s]");
             plot.SaveJpeg("Diagrams/explicit_euler_phase_space.jpg", 500, 500);
             watch.Stop();
             Console.WriteLine($"Finished {watch.ElapsedMilliseconds} ms");
+
+
+            //energy plot
+            var energy = new List<double>();
+            for (int i = 0; i < XValues.Count(); i++)
+            {
+                energy.Add(0.5 * Math.Pow(VelocityValues[i], 2) + await CalculatePotentialValue(XValues[i]));
+            }
+            plot = new();
+            plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), energy.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Energia całkowita [J]");
+            plot.SaveJpeg("Diagrams/explicit_euler_Energy.jpg", 500, 500);
+            var index = TimePoints.IndexOf(TimePoints.FirstOrDefault(v => Math.Abs(v - 10) < 0.000001));
+            Console.WriteLine($"Euler X={XValues[index]}  V={VelocityValues[index]}");
+            return new Dictionary<string, double>
+            {
+                { "X", XValues[index] },
+                { "V", VelocityValues[index] }
+            };
             //var a = await CalculatePotentialValue(5);
             //Console.WriteLine(a);
         }
-        public async Task CalculateVerlet()
+        public async Task<Dictionary<string,double>> CalculateVerlet()
         {
             XValues = new() { 2.58 };
             VelocityValues = new() { 0 };
@@ -98,24 +120,42 @@ namespace Project1.Solutions
             Console.WriteLine($"Calculation completed in {watch.ElapsedMilliseconds} ms");
             watch.Restart();
             Console.WriteLine("Creating plots please wait...");
-            
+
             Plot plot = new();
-            plot.XLabel("Time (s)");
-            plot.YLabel("Value");
+            plot.XLabel("Czas (s)");
+            plot.YLabel("Wartość");
             var scatter1 = plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), XValues.Where((v, ind) => ind % 10 == 0).ToList());
-            scatter1.LegendText = "X";
+            scatter1.LegendText = "X [m]";
             var scatter2 = plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
-            scatter2.LegendText = "V";
+            scatter2.LegendText = "V [m/s]";
             plot.SaveJpeg("Diagrams/verlet.jpg", 500, 500);
             plot = new();
             plot.Add.ScatterLine(XValues.Where((v, ind) => ind % 10 == 0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
-            plot.XLabel("X");
-            plot.YLabel("V");
+            plot.XLabel("X [m]");
+            plot.YLabel("V [m/s]");
             plot.SaveJpeg("Diagrams/verlet_phase_space.jpg", 500, 500);
             watch.Stop();
             Console.WriteLine($"Finished in {watch.ElapsedMilliseconds} ms");
+            var energy = new List<double>();
+            for (int i = 0; i < XValues.Count(); i++)
+            {
+                energy.Add(0.5 * Math.Pow(VelocityValues[i], 2) + await CalculatePotentialValue(XValues[i]));
+            }
+            plot = new();
+            plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), energy.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Energia całkowita [J]");
+            plot.SaveJpeg("Diagrams/Verlet_Energy.jpg", 500, 500);
+
+            var index = TimePoints.IndexOf(TimePoints.FirstOrDefault(v => Math.Abs(v - 10) < 0.000001));
+            Console.WriteLine($"Verlet X={XValues[index]}  V={VelocityValues[index]}");
+            return new Dictionary<string, double>
+            {
+                { "X", XValues[index] },
+                { "V", VelocityValues[index] }
+            };
         }
-        public async Task CalculateRK4()
+        public async Task<Dictionary<string,double>> CalculateRK4()
         {
             XValues = new() { 2.58 };
             VelocityValues = new() { 0 };
@@ -146,22 +186,40 @@ namespace Project1.Solutions
             Console.WriteLine($"Calculation completed in {watch.ElapsedMilliseconds} ms");
             watch.Restart();
             Console.WriteLine("Creating plots please wait...");
-            
+
             Plot plot = new();
-            plot.XLabel("Time (s)");
-            plot.YLabel("Value");
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Wartość");
             var scatter1 = plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), XValues.Where((v, ind) => ind % 10 == 0).ToList());
-            scatter1.LegendText = "X";
+            scatter1.LegendText = "X [m]";
             var scatter2 = plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
-            scatter2.LegendText = "V";
+            scatter2.LegendText = "V [m/s]";
             plot.SaveJpeg("Diagrams/RK4.jpg", 500, 500);
             plot = new();
             plot.Add.ScatterLine(XValues.Where((v, ind) => ind % 10 == 0).ToList(), VelocityValues.Where((v, ind) => ind % 10 == 0).ToList());
-            plot.XLabel("X");
-            plot.YLabel("V");
+            plot.XLabel("X [m]");
+            plot.YLabel("V [m/s]");
             plot.SaveJpeg("Diagrams/RK4_phase_space.jpg", 500, 500);
             watch.Stop();
             Console.WriteLine($"Finished in {watch.ElapsedMilliseconds} ms");
+            var energy = new List<double>();
+            for (int i = 0; i < XValues.Count(); i++)
+            {
+                energy.Add(0.5 * Math.Pow(VelocityValues[i], 2) + await CalculatePotentialValue(XValues[i]));
+            }
+            plot = new();
+            plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), energy.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Energia całkowita [J]");
+            plot.SaveJpeg("Diagrams/Rk4_Energy.jpg", 500, 500);
+
+            var index = TimePoints.IndexOf(TimePoints.FirstOrDefault(v => Math.Abs(v - 10) < 0.000001));
+            Console.WriteLine($"RK4 X={XValues[index]}  V={VelocityValues[index]}");
+            return new Dictionary<string, double>
+            {
+                { "X", XValues[index] },
+                { "V", VelocityValues[index] }
+            };
         }
     }
 }

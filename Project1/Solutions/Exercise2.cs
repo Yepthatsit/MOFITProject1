@@ -11,12 +11,14 @@ namespace Project1.Solutions
 {
     public class Exercise2
     {
-        public double SafetyParameter { get; set; } = 0.9;
+        public double SafetyParameter { get; set; } = 0.7;
         public double MaxTime { get; set; } = 100;
-        public double DeltaTime { get; set; } = 0.1;
+        public double DeltaTime { get; set; } = 0.0001;
+        public double MaxDeltaTime { get; set; } = 0.5;
+        public double MinDeltaTime { get; set; } = 0.0000001;
         public double DeltaXInDerriveative { get; set; } = 0.001;
         public double? alpha { get; set; } = null;
-        public double tolerance { get; set; } = 0.0001;
+        public double tolerance { get; set; } = 0.0000000001;
         //public List<double> TimePoints { get; set; } = new() { 0 };
         //public List<double> XValues { get; set; } = new() { 2.58 };
         //public List<double> VelocityValues { get; set; } = new() { 0 };
@@ -58,11 +60,14 @@ namespace Project1.Solutions
         }
         private async Task<double> CalculateNewDeltaTime(int MethodAccuracy,double epsilon)
         {
-            return SafetyParameter *DeltaTime* Math.Pow(tolerance /  epsilon, 1.0 / (MethodAccuracy + 1));
+            double dtNew = SafetyParameter * DeltaTime * Math.Pow(tolerance / epsilon, 1.0 / (MethodAccuracy + 1));
+            return Math.Clamp(dtNew, MinDeltaTime, MaxDeltaTime);
         }
         public async Task CalculateExplicitEulerSolutionWVT()
         {
+            int count = 0;
             List<double> TimePoints  = new() { 0 };
+            List<double> DeltaTimes = new() { DeltaTime };
             List<double> XValues = new() { 2.58 };
             List<double> VelocityValues = new() { 0 };
             //Timesteps = new() { DeltaTime };
@@ -70,25 +75,27 @@ namespace Project1.Solutions
             while (TimePoints.LastOrDefault() < MaxTime)
             {
                 double? epsilon = null;
-                while (epsilon== null || epsilon >tolerance ) {
+                while (epsilon== null || epsilon >=tolerance ) {
+                    count++;
                     var DoubleDtVelocity = VelocityValues.LastOrDefault() + 2 * DeltaTime * await CalculateAcceleration(XValues.LastOrDefault(),VelocityValues.LastOrDefault());
                     var DoubleDtX = XValues.LastOrDefault() + 2 * DeltaTime * VelocityValues.LastOrDefault();
                     List<double> EpsilonTemp = new();
                     var Velocity = VelocityValues.LastOrDefault() + DeltaTime * await CalculateAcceleration(XValues.LastOrDefault(),VelocityValues.LastOrDefault());
                     var x = XValues.LastOrDefault() + DeltaTime * VelocityValues.LastOrDefault();
-                    Velocity = Velocity + DeltaTime * await CalculateAcceleration(x,Velocity);
-                    x = x + DeltaTime * Velocity;
-                    EpsilonTemp.Add(Math.Abs(DoubleDtVelocity - Velocity));
-                    EpsilonTemp.Add(Math.Abs(DoubleDtX - x));
+                    var x1 = x + DeltaTime * Velocity;
+                    var Velocity1 = Velocity + DeltaTime * await CalculateAcceleration(x,Velocity);
+                    
+                    EpsilonTemp.Add(Math.Abs(DoubleDtVelocity - Velocity1));
+                    EpsilonTemp.Add(Math.Abs(DoubleDtX - x1));
                     epsilon = EpsilonTemp.Max();
                     try
                     {
                         DeltaTime = await CalculateNewDeltaTime(1, Convert.ToDouble(epsilon));
                         //Timesteps.Add(DeltaTime);
-                        if(epsilon <= tolerance)
+                        if(epsilon < tolerance)
                         {
-                            VelocityValues.Add(Velocity);
-                            XValues.Add(x);
+                            VelocityValues.Add(Velocity1);
+                            XValues.Add(x1);
                         } 
                     }
                     catch
@@ -96,6 +103,7 @@ namespace Project1.Solutions
                        
                     }
                 }
+                DeltaTimes.Add(DeltaTime);
                 TimePoints.Add(TimePoints.LastOrDefault() + DeltaTime);
                 
             }
@@ -116,14 +124,16 @@ namespace Project1.Solutions
             plot.YLabel("V");
             plot.SaveJpeg($"Diagrams/explicit_euler_phase_spaceWT{alpha}.jpg", 500, 500);
             watch.Stop();
-            Console.WriteLine($"Finished {watch.ElapsedMilliseconds} ms");
+            Console.WriteLine($"Finished {watch.ElapsedMilliseconds} ms with {count} steps");
         }
         public async Task CalculateVerletSolutionWVT()
         {
+            int count = 0;
             List<double> TimePoints  = new() { 0 };
             DeltaTime = 0.1;
             List<double> XValues = new() { 2.58 };
             List<double> VelocityValues = new() { 0 };
+            List<double> DeltaTimes = new() { DeltaTime };
             Timesteps = new() ;
             var watch = System.Diagnostics.Stopwatch.StartNew();
             watch.Start();
@@ -144,19 +154,22 @@ namespace Project1.Solutions
                     epsilon = EpsilonTemp.Max();
                     try
                     {
-                        DeltaTime = await CalculateNewDeltaTime(1, Convert.ToDouble(epsilon));
+                        DeltaTime = await CalculateNewDeltaTime(2, Convert.ToDouble(epsilon));
                         if (epsilon <= tolerance)
                         {
                             VelocityValues.Add(Velocity);
                             XValues.Add(x);
+                            TimePoints.Add(TimePoints.LastOrDefault() + DeltaTime);
+                            DeltaTimes.Add(DeltaTime);
                         }
                     }
                     catch
                     {
 
                     }
+                    count++;
                 }
-                TimePoints.Add(TimePoints.LastOrDefault() + DeltaTime);
+                
                 //VelocityValues.Add(VelocityValues.LastOrDefault() + 0.5 * DeltaTime * (await CalculateAcceleration(XValues.LastOrDefault(), VelocityValues.LastOrDefault()) + await CalculateAcceleration(XValues.LastOrDefault(), VelocityValues.LastOrDefault())));
                 //XValues.Add(XValues.LastOrDefault() + VelocityValues.LastOrDefault() * DeltaTime + 0.5 * DeltaTime * DeltaTime * await CalculateAcceleration(XValues.LastOrDefault(), VelocityValues.LastOrDefault()));
 
@@ -179,15 +192,22 @@ namespace Project1.Solutions
             plot.XLabel("X");
             plot.YLabel("V");
             plot.SaveJpeg($"Diagrams/verlet_phase_spaceWVT{alpha}.jpg", 500, 500);
+            plot = new();
+            plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), DeltaTimes.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Krok czasowy [s]");
+            plot.SaveJpeg($"Diagrams/Verlet_Times{alpha}.jpg", 500, 500);
             watch.Stop();
-            Console.WriteLine($"Finished in {watch.ElapsedMilliseconds} ms");
+            Console.WriteLine($"Finished in {watch.ElapsedMilliseconds} ms with {count} steps");
         }
         public async Task CalculateRK4SolutionWVT()
         {
+            int count = 0;
             List<double> TimePoints = new() { 0 };
             DeltaTime = 0.5;
             List<double> XValues = new() { 2.58 };
             List<double> VelocityValues = new() { 0 };
+            List<double> DeltaTimes = new() { DeltaTime };
             Timesteps = new();
             var watch = System.Diagnostics.Stopwatch.StartNew();
             watch.Start();
@@ -196,6 +216,7 @@ namespace Project1.Solutions
                 double? epsilon = null;
                 while (epsilon == null || epsilon > tolerance)
                 {
+                    count++;
                     List<double> DoubledtXkv = new();
                     List<double> DoubledtVkv = new();
 
@@ -249,7 +270,7 @@ namespace Project1.Solutions
                     epsilon = EpsilonTemp.Max();
                     try
                     {
-                        DeltaTime = await CalculateNewDeltaTime(1, Convert.ToDouble(epsilon));
+                        DeltaTime = await CalculateNewDeltaTime(4, Convert.ToDouble(epsilon));
                         if (epsilon <= tolerance)
                         {
                             VelocityValues.Add(Velocity);
@@ -261,6 +282,7 @@ namespace Project1.Solutions
                     }
 
                 }
+                DeltaTimes.Add(DeltaTime);
                 TimePoints.Add(TimePoints.LastOrDefault() + DeltaTime);
             }
             Plot plot = new();
@@ -277,7 +299,13 @@ namespace Project1.Solutions
             plot.YLabel("V");
             plot.SaveJpeg($"Diagrams/RK4_phase_spaceWVT{alpha}.jpg", 500, 500);
             watch.Stop();
-            Console.WriteLine($"Finished in {watch.ElapsedMilliseconds} ms");
+            plot = new();
+            plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), DeltaTimes.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Krok czasowy [s]");
+            plot.SaveJpeg($"Diagrams/RK4_Times{alpha}.jpg", 500, 500);
+            watch.Stop();
+            Console.WriteLine($"Finished in {watch.ElapsedMilliseconds} ms with  {count}  steps");
             Console.WriteLine(DeltaTime);
         }
     }

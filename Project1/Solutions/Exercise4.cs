@@ -10,16 +10,18 @@ namespace Project1.Solutions
     {
         public double? alpha { get; set; } = 0.5;
         public double MaxTime { get; set; } = 100;
-        public double MaxNewtonIterations { get; set; } = 1000;
-        public double DeltaTime { get; set; } = 0.1;
+        public double MaxNewtonIterations { get; set; } = 5;
+        public double DeltaTime { get; set; } = 0.5;
         public double DeltaXInDerriveative { get; set; } = 0.001;
-        public double tolerance { get; set; } = 0.0001;
-        public double DeltaXNewton { get; set; } = 0.01;
-        public double DeltaVNewton { get; set; } = 0.01;
+        public double tolerance { get; set; } = 0.001;
+        public double MinDeltaTime { get; set; } = 0.0000001;
+        public double MaxDeltaTime { get; set; } = 0.5;
+        public double NewtonTol { get; set; } = 0.0001;
         public double SafetyParameter { get; set; } = 0.9;
         private async Task<double> CalculateNewDeltaTime(int MethodAccuracy, double epsilon)
         {
-            return SafetyParameter * DeltaTime * Math.Pow(tolerance / epsilon, 1.0 / (MethodAccuracy + 1));
+            double dtNew = SafetyParameter * DeltaTime * Math.Pow(tolerance / epsilon, 1.0 / (MethodAccuracy + 1));
+            return Math.Clamp(dtNew, MinDeltaTime, MaxDeltaTime);
         }
         private async Task<double> CalculatePotentialValue(double x)
         {
@@ -58,43 +60,54 @@ namespace Project1.Solutions
             List<double> TimePoints = new() { 0 };
             List<double> XValues = new() { 2.58 };
             List<double> VelocityValues = new() { 0 };
+            List<double> deltatimes = new() { DeltaTime };
             var watch = System.Diagnostics.Stopwatch.StartNew();
+
             while (TimePoints.LastOrDefault() < MaxTime)
             {
+                double xPrev = XValues.LastOrDefault();
+                double vPrev = VelocityValues.LastOrDefault();
                 double epsilon = 1;
-                do
+                Console.WriteLine($"Calculating time {TimePoints.LastOrDefault()}");
+                while (epsilon >= tolerance)
                 {
                     // Calculate trapzoid solution
                     int NewtonItersations = 1;
-                    double xnp1muDoubledt = XValues.LastOrDefault(); // single step double dt
-                    double vnp1muDoubleDt = VelocityValues.LastOrDefault(); // single step double dt
+                    double xIterDoubledt = xPrev; // single step double dt
+                    double vIterDoubleDt = vPrev; // single step double dt
                     while (NewtonItersations < MaxNewtonIterations)
                     {
                         try
                         {
-                            double xnp1mup1 = xnp1muDoubledt + Math.Pow(DeltaXNewton, NewtonItersations);
-                            double vnp1mup1 = vnp1muDoubleDt + Math.Pow(DeltaVNewton, NewtonItersations);
+                            double f1_val = await F1(xIterDoubledt, vIterDoubleDt, xPrev, vPrev, 1);
+                            double f2_val = await F2(xIterDoubledt, vIterDoubleDt, xPrev, vPrev, 1);
 
-                            double L1 = Math.Pow(DeltaXNewton, NewtonItersations) - (DeltaTime) * Math.Pow(DeltaVNewton, NewtonItersations);
-                            double L2 = (DeltaTime) * await CalculatePotSecDerr(xnp1muDoubledt) * Math.Pow(DeltaXNewton, NewtonItersations)
-                                        + (1 + Convert.ToDouble(alpha) * DeltaTime) * Math.Pow(DeltaVNewton, NewtonItersations);
-                            var F1Val = -await F1(xnp1muDoubledt, vnp1muDoubleDt, XValues.LastOrDefault(), VelocityValues.LastOrDefault(),1);
-                            var F2Val = -await F2(xnp1muDoubledt, vnp1muDoubleDt, XValues.LastOrDefault(), VelocityValues.LastOrDefault(),1);
-                            if (L1 == F1Val 
-                                && L2 == F2Val)
-                            {
-                                
-                                break;
-                            }
-                            xnp1muDoubledt = xnp1mup1;
-                            vnp1muDoubleDt = vnp1mup1;
 
-                            NewtonItersations++;
-                            if (NewtonItersations >= MaxNewtonIterations)
+                            double j11 = 1.0;
+                            double j12 = -DeltaTime;
+                            double j21 = (DeltaTime) * await CalculatePotSecDerr(xIterDoubledt);
+                            double j22 = 1.0 + DeltaTime * Convert.ToDouble(alpha); // Simplified: 1.0 + Alpha * Dt / 2.0
+
+
+
+                            double detJ = j11 * j22 - j12 * j21;
+
+
+
+                            double delta_x = (j22 * (-f1_val) - j12 * (-f2_val)) / detJ;
+                            double delta_v = (-j21 * (-f1_val) + j11 * (-f2_val)) / detJ;
+
+
+
+                            xIterDoubledt += delta_x;
+                            vIterDoubleDt += delta_v;
+
+
+                            if (Math.Abs(delta_x) < NewtonTol && Math.Abs(delta_v) < NewtonTol)
                             {
-                                Console.WriteLine($"Max iterations reached: {NewtonItersations}");
-                                break;
+                                break; // Exit Newton loop
                             }
+
                         }
                         catch
                         {
@@ -103,8 +116,8 @@ namespace Project1.Solutions
                         }
                     }
 
-                    double xnp1mu = XValues.LastOrDefault(); // double step single dt
-                    double vnp1mu = VelocityValues.LastOrDefault(); // double step single dt
+                    double xIter = xPrev; // double step single dt
+                    double vIter = vPrev; // double step single dt
                     for (int i = 0; i < 2; i++)
                     {
                         NewtonItersations = 1;
@@ -112,49 +125,62 @@ namespace Project1.Solutions
                         {
                             try
                             {
-                                double xnp1mup1 = xnp1mu + Math.Pow(DeltaXNewton, NewtonItersations);
-                                double vnp1mup1 = vnp1mu + Math.Pow(DeltaVNewton, NewtonItersations);
 
-                                double L1 = Math.Pow(DeltaXNewton, NewtonItersations) - (DeltaTime / 2) * Math.Pow(DeltaVNewton, NewtonItersations);
-                                double L2 = (DeltaTime / 2) * await CalculatePotSecDerr(xnp1mu) * Math.Pow(DeltaXNewton, NewtonItersations)
-                                            + (1 + Convert.ToDouble(alpha) * DeltaTime / 2)*Math.Pow(DeltaVNewton,NewtonItersations);
-                                if(L1 == - await F1(xnp1mu,vnp1mu,XValues.LastOrDefault(),VelocityValues.LastOrDefault()) 
-                                    && L2 == - await F2(xnp1mu, vnp1mu, XValues.LastOrDefault(), VelocityValues.LastOrDefault()))
-                                {
-                                    
-                                    break;
-                                }
-                                xnp1mu = xnp1mup1;
-                                vnp1mu = vnp1mup1;
+                                double f1_val = await F1(xIter, vIter, xPrev, vPrev);
+                                double f2_val = await F2(xIter, vIter, xPrev, vPrev);
 
-                                NewtonItersations++;
-                                if (NewtonItersations >= MaxNewtonIterations)
+
+                                double j11 = 1.0;
+                                double j12 = -DeltaTime / 2.0;
+                                double j21 = -(DeltaTime / 2.0) * (-(1.0 / 1) * await CalculatePotSecDerr(xIter));
+                                double j22 = 1.0 - (DeltaTime / 2.0) * (-Convert.ToDouble(alpha)); // Simplified: 1.0 + Alpha * Dt / 2.0
+
+
+
+                                double detJ = j11 * j22 - j12 * j21;
+
+
+
+                                double delta_x = (j22 * (-f1_val) - j12 * (-f2_val)) / detJ;
+                                double delta_v = (-j21 * (-f1_val) + j11 * (-f2_val)) / detJ;
+
+
+
+                                xIter += delta_x;
+                                vIter += delta_v;
+
+
+                                if (Math.Abs(delta_x) < NewtonTol && Math.Abs(delta_v) < NewtonTol)
                                 {
-                                    Console.WriteLine($"Max iterations reached: {NewtonItersations}");
-                                    break;
+                                    break; // Exit Newton loop
                                 }
+
+
                             }
-                            catch
+                            catch (Exception ex)
                             {
-                                Console.WriteLine($"By some miracle this occured in CalculateTrapzSolution {NewtonItersations}");
-                                break;
+                                {
+                                    Console.WriteLine($"By some miracle this occured in CalculateTrapzSolution {NewtonItersations}  {ex.Message.ToString()}");
+                                    break;
+                                }
                             }
                         }
-                    }
-                    List<double> EpsilonTemp = new();
-                    EpsilonTemp.Add(Math.Abs(vnp1muDoubleDt - vnp1mu));
-                    EpsilonTemp.Add(Math.Abs(xnp1muDoubledt - xnp1mu));
-                    epsilon = EpsilonTemp.Max();
+                        List<double> EpsilonTemp = new();
+                        EpsilonTemp.Add(Math.Abs(xIterDoubledt - xIter));
+                        EpsilonTemp.Add(Math.Abs(vIterDoubleDt - vIter));
+                        epsilon = EpsilonTemp.Max();
 
-                    DeltaTime = await CalculateNewDeltaTime(1, Convert.ToDouble(epsilon));
-                    if (epsilon < tolerance)
-                    {
-                        XValues.Add(xnp1mu);
-                        VelocityValues.Add(vnp1mu);
-                        TimePoints.Add(TimePoints.LastOrDefault() + DeltaTime);
-                        break;
+                        DeltaTime = await CalculateNewDeltaTime(2, Convert.ToDouble(epsilon));
+                        if (epsilon < tolerance)
+                        {
+                            XValues.Add(xIter);
+                            VelocityValues.Add(vIter);
+                            TimePoints.Add(TimePoints.LastOrDefault() + DeltaTime);
+                            deltatimes.Add(DeltaTime);
+                            break;
+                        }
                     }
-                } while (epsilon >= tolerance);
+                }
             }
             Console.WriteLine($"Calculation completed in {watch.ElapsedMilliseconds} ms");
             watch.Restart();
@@ -172,8 +198,15 @@ namespace Project1.Solutions
             plot.XLabel("X");
             plot.YLabel("V");
             plot.SaveJpeg($"Diagrams/Trapzoid_Phaze_Space{alpha}.jpg", 500, 500);
+            plot = new();
+            plot.Add.ScatterLine(TimePoints.Where((v, ind) => ind % 10 == 0).ToList(), deltatimes.Where((v, ind) => ind % 10 == 0).ToList());
+            plot.XLabel("Czas [s]");
+            plot.YLabel("Krok czasowy [s]");
+            plot.SaveJpeg($"Diagrams/Trapz_Times{alpha}.jpg", 500, 500);
+            watch.Stop();
             watch.Stop();
             Console.WriteLine($"Finished {watch.ElapsedMilliseconds} ms");
+
         }
     }
 }
